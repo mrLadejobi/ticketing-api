@@ -51,7 +51,8 @@ func (r *MemoryRepository) GetByHash(ctx context.Context, hash string) (*APIKey,
 	if !exists {
 		return nil, ErrNotFound
 	}
-	return r.keys[id], nil
+	cp := *r.keys[id]
+	return &cp, nil
 }
 
 func (r *MemoryRepository) UpdateLastUsed(ctx context.Context, id int) error {

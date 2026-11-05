@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"sync"
 	"time"
 
 	"ticketing-api/internal/auth"
@@ -17,12 +18,15 @@ type UserGetter interface {
 type Service struct {
 	repo       Repository
 	userGetter UserGetter
+	mu         sync.RWMutex
+	lastSeen   map[int]time.Time
 }
 
 func NewService(repo Repository, userGetter UserGetter) *Service {
 	return &Service{
 		repo:       repo,
 		userGetter: userGetter,
+		lastSeen:   make(map[int]time.Time),
 	}
 }
 
@@ -62,6 +66,23 @@ func (s *Service) CreateKey(ctx context.Context, userID int, req CreateAPIKeyReq
 	}, nil
 }
 
+func (s *Service) shouldUpdateLastUsed(keyID int, lastUsedAt *time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	last, exists := s.lastSeen[keyID]
+	if !exists && lastUsedAt != nil {
+		last = *lastUsedAt
+		s.lastSeen[keyID] = last
+	}
+
+	if !exists || time.Since(last) > 5*time.Minute {
+		s.lastSeen[keyID] = time.Now().UTC()
+		return true
+	}
+	return false
+}
+
 func (s *Service) ValidateKey(ctx context.Context, rawToken string) (*auth.User, error) {
 	hasher := sha256.New()
 	hasher.Write([]byte(rawToken))
@@ -78,10 +99,7 @@ func (s *Service) ValidateKey(ctx context.Context, rawToken string) (*auth.User,
 
 	// Throttle last_used_at database writes to at most once every 5 minutes per key.
 	// Update is performed asynchronously in a background goroutine with a 3-second timeout.
-	if key.LastUsedAt == nil || time.Since(*key.LastUsedAt) > 5*time.Minute {
-		now := time.Now().UTC()
-		key.LastUsedAt = &now
-
+	if s.shouldUpdateLastUsed(key.ID, key.LastUsedAt) {
 		baseCtx := ctx
 		if baseCtx == nil {
 			baseCtx = context.Background()

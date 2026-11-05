@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -133,11 +134,11 @@ func TestAPIKey_ExpiredKey(t *testing.T) {
 
 type spyRepo struct {
 	apikey.Repository
-	updateCalls int
+	updateCalls atomic.Int32
 }
 
 func (s *spyRepo) UpdateLastUsed(ctx context.Context, id int) error {
-	s.updateCalls++
+	s.updateCalls.Add(1)
 	return s.Repository.UpdateLastUsed(ctx, id)
 }
 
@@ -168,10 +169,10 @@ func TestAPIKey_ThrottledLastUsedAt(t *testing.T) {
 	}
 
 	// Give the goroutine a small window to run
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
-	if spy.updateCalls != 1 {
-		t.Fatalf("expected 1 update call after initial validation, got %d", spy.updateCalls)
+	if spy.updateCalls.Load() != 1 {
+		t.Fatalf("expected 1 update call after initial validation, got %d", spy.updateCalls.Load())
 	}
 
 	// Rapid successive calls should be throttled and NOT call UpdateLastUsed again
@@ -182,9 +183,9 @@ func TestAPIKey_ThrottledLastUsedAt(t *testing.T) {
 		}
 	}
 
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
-	if spy.updateCalls != 1 {
-		t.Fatalf("expected still exactly 1 update call due to throttling, got %d", spy.updateCalls)
+	if spy.updateCalls.Load() != 1 {
+		t.Fatalf("expected still exactly 1 update call due to throttling, got %d", spy.updateCalls.Load())
 	}
 }
