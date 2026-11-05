@@ -5,13 +5,29 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"ticketing-api/internal/auth"
+	"ticketing-api/internal/database"
 )
 
-// PostgresRepository implements Repository using PostgreSQL with context cancellation.
+type dbExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 type PostgresRepository struct {
 	db *sql.DB
+}
+
+func (r *PostgresRepository) getExecutor(ctx context.Context) dbExecutor {
+	if tx := database.TxFromContext(ctx); tx != nil {
+		return tx
+	}
+	return r.db
 }
 
 func NewPostgresRepository(db *sql.DB) *PostgresRepository {
@@ -20,33 +36,28 @@ func NewPostgresRepository(db *sql.DB) *PostgresRepository {
 
 func (r *PostgresRepository) Create(ctx context.Context, t *Ticket) (*Ticket, error) {
 	query := `
-		INSERT INTO tickets (title, description, status, priority, assignee, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, status, created_at, updated_at
+		INSERT INTO tickets (
+			project_id, parent_id, cycle_id, key, title, description, status, priority, reporter_id, assignee_id, version, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, $12)
+		RETURNING id, created_at, updated_at
 	`
-
 	now := time.Now().UTC()
-	t.Status = StatusTodo
+	t.Version = 1
+	if t.Status == "" {
+		t.Status = StatusTodo
+	}
 	t.CreatedAt = now
 	t.UpdatedAt = now
 
 	err := r.db.QueryRowContext(
-		ctx,
-		query,
-		t.Title,
-		t.Description,
-		t.Status,
-		t.Priority,
-		t.Assignee,
-		t.CreatedAt,
-		t.UpdatedAt,
-	).Scan(&t.ID, &t.Status, &t.CreatedAt, &t.UpdatedAt)
-
+		ctx, query,
+		t.ProjectID, t.ParentID, t.CycleID, t.Key, t.Title, t.Description, t.Status, t.Priority, t.ReporterID, t.AssigneeID, t.CreatedAt, t.UpdatedAt,
+	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert ticket failed: %w", err)
 	}
 
-	return t, nil
+	return r.GetByIDOrKey(ctx, strconv.Itoa(t.ID))
 }
 
 func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter) ([]Ticket, int, error) {
@@ -54,27 +65,49 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter)
 	var args []any
 	argID := 1
 
+	if !filter.IncludeDeleted {
+		whereClauses = append(whereClauses, "t.deleted_at IS NULL")
+	}
+
+	if filter.ProjectID != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("t.project_id = $%d", argID))
+		args = append(args, *filter.ProjectID)
+		argID++
+	}
+
+	if filter.CycleID != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("t.cycle_id = $%d", argID))
+		args = append(args, *filter.CycleID)
+		argID++
+	}
+
 	if filter.Status != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("status = $%d", argID))
+		whereClauses = append(whereClauses, fmt.Sprintf("t.status = $%d", argID))
 		args = append(args, *filter.Status)
 		argID++
 	}
 
 	if filter.Priority != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("priority = $%d", argID))
+		whereClauses = append(whereClauses, fmt.Sprintf("t.priority = $%d", argID))
 		args = append(args, *filter.Priority)
 		argID++
 	}
 
-	if filter.Assignee != nil && *filter.Assignee != "" {
-		whereClauses = append(whereClauses, fmt.Sprintf("LOWER(assignee) = LOWER($%d)", argID))
-		args = append(args, *filter.Assignee)
+	if filter.AssigneeID != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("t.assignee_id = $%d", argID))
+		args = append(args, *filter.AssigneeID)
+		argID++
+	}
+
+	if filter.ReporterID != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("t.reporter_id = $%d", argID))
+		args = append(args, *filter.ReporterID)
 		argID++
 	}
 
 	if filter.Search != nil && *filter.Search != "" {
 		likePattern := "%" + *filter.Search + "%"
-		whereClauses = append(whereClauses, fmt.Sprintf("(title ILIKE $%d OR description ILIKE $%d)", argID, argID))
+		whereClauses = append(whereClauses, fmt.Sprintf("(t.title ILIKE $%d OR t.description ILIKE $%d OR t.key ILIKE $%d)", argID, argID, argID))
 		args = append(args, likePattern)
 		argID++
 	}
@@ -84,14 +117,12 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter)
 		whereSQL = " WHERE " + strings.Join(whereClauses, " AND ")
 	}
 
-	// 1. Get total count
-	countQuery := "SELECT COUNT(*) FROM tickets" + whereSQL
+	countQuery := "SELECT COUNT(*) FROM tickets t" + whereSQL
 	var total int
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count tickets failed: %w", err)
 	}
 
-	// 2. Fetch paginated records
 	limit := filter.Limit
 	if limit <= 0 {
 		limit = 20
@@ -102,14 +133,19 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter)
 	}
 
 	dataQuery := fmt.Sprintf(`
-		SELECT id, title, description, status, priority, COALESCE(assignee, ''), created_at, updated_at
-		FROM tickets%s
-		ORDER BY id ASC
+		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.title, t.description, t.status, t.priority,
+		       t.reporter_id, t.assignee_id, t.version, t.deleted_at, t.created_at, t.updated_at,
+		       u_rep.id, u_rep.email, u_rep.full_name, u_rep.role,
+		       u_ass.id, u_ass.email, u_ass.full_name, u_ass.role
+		FROM tickets t
+		LEFT JOIN users u_rep ON t.reporter_id = u_rep.id
+		LEFT JOIN users u_ass ON t.assignee_id = u_ass.id
+		%s
+		ORDER BY t.id ASC
 		LIMIT $%d OFFSET $%d
 	`, whereSQL, argID, argID+1)
 
 	queryArgs := append(args, limit, offset)
-
 	rows, err := r.db.QueryContext(ctx, dataQuery, queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query tickets failed: %w", err)
@@ -118,121 +154,370 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter)
 
 	tickets := make([]Ticket, 0)
 	for rows.Next() {
-		var t Ticket
-		if err := rows.Scan(
-			&t.ID,
-			&t.Title,
-			&t.Description,
-			&t.Status,
-			&t.Priority,
-			&t.Assignee,
-			&t.CreatedAt,
-			&t.UpdatedAt,
-		); err != nil {
-			return nil, 0, fmt.Errorf("scan ticket failed: %w", err)
+		t, err := scanTicket(rows)
+		if err != nil {
+			return nil, 0, err
 		}
-		tickets = append(tickets, t)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("row iteration error: %w", err)
+		tickets = append(tickets, *t)
 	}
 
 	return tickets, total, nil
 }
 
-func (r *PostgresRepository) GetByID(ctx context.Context, id int) (*Ticket, error) {
-	query := `
-		SELECT id, title, description, status, priority, COALESCE(assignee, ''), created_at, updated_at
-		FROM tickets
-		WHERE id = $1
-	`
+func (r *PostgresRepository) GetByIDOrKey(ctx context.Context, idOrKey string) (*Ticket, error) {
+	var whereClause string
+	var arg any
 
-	var t Ticket
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&t.ID,
-		&t.Title,
-		&t.Description,
-		&t.Status,
-		&t.Priority,
-		&t.Assignee,
-		&t.CreatedAt,
-		&t.UpdatedAt,
-	)
+	if id, err := strconv.Atoi(idOrKey); err == nil {
+		whereClause = "t.id = $1"
+		arg = id
+	} else {
+		whereClause = "UPPER(t.key) = UPPER($1)"
+		arg = strings.TrimSpace(idOrKey)
+	}
 
+	query := fmt.Sprintf(`
+		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.title, t.description, t.status, t.priority,
+		       t.reporter_id, t.assignee_id, t.version, t.deleted_at, t.created_at, t.updated_at,
+		       u_rep.id, u_rep.email, u_rep.full_name, u_rep.role,
+		       u_ass.id, u_ass.email, u_ass.full_name, u_ass.role
+		FROM tickets t
+		LEFT JOIN users u_rep ON t.reporter_id = u_rep.id
+		LEFT JOIN users u_ass ON t.assignee_id = u_ass.id
+		WHERE %s
+	`, whereClause)
+
+	row := r.db.QueryRowContext(ctx, query, arg)
+	t, err := scanTicketRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("query ticket by id failed: %w", err)
+		return nil, fmt.Errorf("get ticket by id or key failed: %w", err)
+	}
+	return t, nil
+}
+
+func (r *PostgresRepository) Update(ctx context.Context, id int, req UpdateTicketRequest) (*Ticket, error) {
+	current, err := r.GetByIDOrKey(ctx, strconv.Itoa(id))
+	if err != nil {
+		return nil, err
+	}
+	if current.DeletedAt != nil {
+		return nil, ErrNotFound
+	}
+
+	if req.Version != nil && *req.Version != current.Version {
+		return nil, ErrOptimisticLockConflict
+	}
+
+	if req.ParentID != nil {
+		current.ParentID = req.ParentID
+	}
+	if req.CycleID != nil {
+		current.CycleID = req.CycleID
+	}
+	if req.Title != nil {
+		current.Title = *req.Title
+	}
+	if req.Description != nil {
+		current.Description = *req.Description
+	}
+	if req.Status != nil {
+		current.Status = *req.Status
+	}
+	if req.Priority != nil {
+		current.Priority = *req.Priority
+	}
+	if req.AssigneeID != nil {
+		current.AssigneeID = req.AssigneeID
+	}
+	current.UpdatedAt = time.Now().UTC()
+
+	query := `
+		UPDATE tickets
+		SET parent_id = $1, cycle_id = $2, title = $3, description = $4, status = $5, priority = $6, assignee_id = $7,
+		    version = version + 1, updated_at = $8
+		WHERE id = $9 AND version = $10 AND deleted_at IS NULL
+	`
+	res, err := r.getExecutor(ctx).ExecContext(ctx, query, current.ParentID, current.CycleID, current.Title, current.Description, current.Status, current.Priority, current.AssigneeID, current.UpdatedAt, id, current.Version)
+	if err != nil {
+		return nil, fmt.Errorf("update ticket failed: %w", err)
+	}
+
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return nil, ErrOptimisticLockConflict
+	}
+
+	return r.GetByIDOrKey(ctx, strconv.Itoa(id))
+}
+
+func (r *PostgresRepository) SoftDelete(ctx context.Context, id int) error {
+	query := `UPDATE tickets SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL`
+	now := time.Now().UTC()
+	res, err := r.db.ExecContext(ctx, query, now, id)
+	if err != nil {
+		return fmt.Errorf("soft delete ticket failed: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *PostgresRepository) Restore(ctx context.Context, id int) (*Ticket, error) {
+	query := `UPDATE tickets SET deleted_at = NULL, updated_at = $1 WHERE id = $2 RETURNING id`
+	now := time.Now().UTC()
+	var tid int
+	err := r.db.QueryRowContext(ctx, query, now, id).Scan(&tid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("restore ticket failed: %w", err)
+	}
+	return r.GetByIDOrKey(ctx, strconv.Itoa(id))
+}
+
+func (r *PostgresRepository) ListByProject(ctx context.Context, projectID int) ([]Ticket, error) {
+	filter := ListTicketsFilter{
+		ProjectID:      &projectID,
+		IncludeDeleted: false,
+		Limit:          1000,
+	}
+	tickets, _, err := r.List(ctx, filter)
+	return tickets, err
+}
+
+func (r *PostgresRepository) ListSubtasks(ctx context.Context, parentID int) ([]Ticket, error) {
+	query := `
+		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.title, t.description, t.status, t.priority,
+		       t.reporter_id, t.assignee_id, t.version, t.deleted_at, t.created_at, t.updated_at,
+		       u_rep.id, u_rep.email, u_rep.full_name, u_rep.role,
+		       u_ass.id, u_ass.email, u_ass.full_name, u_ass.role
+		FROM tickets t
+		LEFT JOIN users u_rep ON t.reporter_id = u_rep.id
+		LEFT JOIN users u_ass ON t.assignee_id = u_ass.id
+		WHERE t.parent_id = $1 AND t.deleted_at IS NULL
+		ORDER BY t.id ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, parentID)
+	if err != nil {
+		return nil, fmt.Errorf("list subtasks failed: %w", err)
+	}
+	defer rows.Close()
+
+	var tickets []Ticket
+	for rows.Next() {
+		t, err := scanTicket(rows)
+		if err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, *t)
+	}
+	return tickets, nil
+}
+
+func (r *PostgresRepository) ListByCycle(ctx context.Context, cycleID int) ([]Ticket, error) {
+	query := `
+		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.title, t.description, t.status, t.priority,
+		       t.reporter_id, t.assignee_id, t.version, t.deleted_at, t.created_at, t.updated_at,
+		       u_rep.id, u_rep.email, u_rep.full_name, u_rep.role,
+		       u_ass.id, u_ass.email, u_ass.full_name, u_ass.role
+		FROM tickets t
+		LEFT JOIN users u_rep ON t.reporter_id = u_rep.id
+		LEFT JOIN users u_ass ON t.assignee_id = u_ass.id
+		WHERE t.cycle_id = $1 AND t.deleted_at IS NULL
+		ORDER BY t.id ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, cycleID)
+	if err != nil {
+		return nil, fmt.Errorf("list by cycle failed: %w", err)
+	}
+	defer rows.Close()
+
+	var tickets []Ticket
+	for rows.Next() {
+		t, err := scanTicket(rows)
+		if err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, *t)
+	}
+	return tickets, nil
+}
+
+func (r *PostgresRepository) BulkUpdate(ctx context.Context, req BulkUpdateTicketsRequest) ([]Ticket, error) {
+	if len(req.TicketIDs) == 0 {
+		return []Ticket{}, nil
+	}
+
+	exec := r.getExecutor(ctx)
+	var tx *sql.Tx
+	var isOwner bool
+
+	if existingTx := database.TxFromContext(ctx); existingTx != nil {
+		tx = existingTx
+	} else {
+		var err error
+		tx, err = r.db.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to begin bulk update transaction: %w", err)
+		}
+		isOwner = true
+		defer func() {
+			if isOwner && tx != nil {
+				_ = tx.Rollback()
+			}
+		}()
+		exec = tx
+	}
+
+	now := time.Now().UTC()
+	for _, id := range req.TicketIDs {
+		var setClauses []string
+		var args []any
+		argIdx := 1
+
+		if req.Status != nil {
+			setClauses = append(setClauses, fmt.Sprintf("status = $%d", argIdx))
+			args = append(args, *req.Status)
+			argIdx++
+		}
+		if req.Priority != nil {
+			setClauses = append(setClauses, fmt.Sprintf("priority = $%d", argIdx))
+			args = append(args, *req.Priority)
+			argIdx++
+		}
+		if req.AssigneeID != nil {
+			setClauses = append(setClauses, fmt.Sprintf("assignee_id = $%d", argIdx))
+			args = append(args, *req.AssigneeID)
+			argIdx++
+		}
+		if req.CycleID != nil {
+			setClauses = append(setClauses, fmt.Sprintf("cycle_id = $%d", argIdx))
+			args = append(args, *req.CycleID)
+			argIdx++
+		}
+
+		if len(setClauses) == 0 {
+			continue
+		}
+
+		setClauses = append(setClauses, fmt.Sprintf("version = version + 1, updated_at = $%d", argIdx))
+		args = append(args, now)
+		argIdx++
+
+		args = append(args, id)
+		query := fmt.Sprintf("UPDATE tickets SET %s WHERE id = $%d AND deleted_at IS NULL", strings.Join(setClauses, ", "), argIdx)
+
+		if _, err := exec.ExecContext(ctx, query, args...); err != nil {
+			return nil, fmt.Errorf("failed to bulk update ticket %d: %w", id, err)
+		}
+	}
+
+	if isOwner {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit bulk update transaction: %w", err)
+		}
+		tx = nil
+	}
+
+	var updated []Ticket
+	for _, id := range req.TicketIDs {
+		if t, err := r.GetByIDOrKey(ctx, strconv.Itoa(id)); err == nil {
+			updated = append(updated, *t)
+		}
+	}
+	return updated, nil
+}
+
+func scanTicket(rows *sql.Rows) (*Ticket, error) {
+	var t Ticket
+	var parentID, cycleID, uRepID, uAssID sql.NullInt64
+	var uRepEmail, uRepName, uRepRole sql.NullString
+	var uAssEmail, uAssName, uAssRole sql.NullString
+
+	if err := rows.Scan(
+		&t.ID, &t.ProjectID, &parentID, &cycleID, &t.Key, &t.Title, &t.Description, &t.Status, &t.Priority,
+		&t.ReporterID, &t.AssigneeID, &t.Version, &t.DeletedAt, &t.CreatedAt, &t.UpdatedAt,
+		&uRepID, &uRepEmail, &uRepName, &uRepRole,
+		&uAssID, &uAssEmail, &uAssName, &uAssRole,
+	); err != nil {
+		return nil, fmt.Errorf("scan ticket failed: %w", err)
+	}
+
+	if parentID.Valid {
+		pid := int(parentID.Int64)
+		t.ParentID = &pid
+	}
+	if cycleID.Valid {
+		cid := int(cycleID.Int64)
+		t.CycleID = &cid
+	}
+
+	if uRepID.Valid {
+		t.Reporter = &auth.UserSummary{
+			ID:       int(uRepID.Int64),
+			Email:    uRepEmail.String,
+			FullName: uRepName.String,
+			Role:     auth.Role(uRepRole.String),
+		}
+	}
+	if uAssID.Valid {
+		t.Assignee = &auth.UserSummary{
+			ID:       int(uAssID.Int64),
+			Email:    uAssEmail.String,
+			FullName: uAssName.String,
+			Role:     auth.Role(uAssRole.String),
+		}
 	}
 
 	return &t, nil
 }
 
-func (r *PostgresRepository) Update(ctx context.Context, id int, req UpdateTicketRequest) (*Ticket, error) {
-	existing, err := r.GetByID(ctx, id)
-	if err != nil {
+func scanTicketRow(row *sql.Row) (*Ticket, error) {
+	var t Ticket
+	var parentID, cycleID, uRepID, uAssID sql.NullInt64
+	var uRepEmail, uRepName, uRepRole sql.NullString
+	var uAssEmail, uAssName, uAssRole sql.NullString
+
+	if err := row.Scan(
+		&t.ID, &t.ProjectID, &parentID, &cycleID, &t.Key, &t.Title, &t.Description, &t.Status, &t.Priority,
+		&t.ReporterID, &t.AssigneeID, &t.Version, &t.DeletedAt, &t.CreatedAt, &t.UpdatedAt,
+		&uRepID, &uRepEmail, &uRepName, &uRepRole,
+		&uAssID, &uAssEmail, &uAssName, &uAssRole,
+	); err != nil {
 		return nil, err
 	}
 
-	if req.Title != nil {
-		existing.Title = *req.Title
+	if parentID.Valid {
+		pid := int(parentID.Int64)
+		t.ParentID = &pid
 	}
-	if req.Description != nil {
-		existing.Description = *req.Description
-	}
-	if req.Status != nil {
-		existing.Status = *req.Status
-	}
-	if req.Priority != nil {
-		existing.Priority = *req.Priority
-	}
-	if req.Assignee != nil {
-		existing.Assignee = *req.Assignee
-	}
-	existing.UpdatedAt = time.Now().UTC()
-
-	query := `
-		UPDATE tickets
-		SET title = $1, description = $2, status = $3, priority = $4, assignee = $5, updated_at = $6
-		WHERE id = $7
-	`
-
-	_, err = r.db.ExecContext(
-		ctx,
-		query,
-		existing.Title,
-		existing.Description,
-		existing.Status,
-		existing.Priority,
-		existing.Assignee,
-		existing.UpdatedAt,
-		id,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("update ticket failed: %w", err)
+	if cycleID.Valid {
+		cid := int(cycleID.Int64)
+		t.CycleID = &cid
 	}
 
-	return existing, nil
-}
-
-func (r *PostgresRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM tickets WHERE id = $1`
-
-	res, err := r.db.ExecContext(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("delete ticket failed: %w", err)
+	if uRepID.Valid {
+		t.Reporter = &auth.UserSummary{
+			ID:       int(uRepID.Int64),
+			Email:    uRepEmail.String,
+			FullName: uRepName.String,
+			Role:     auth.Role(uRepRole.String),
+		}
+	}
+	if uAssID.Valid {
+		t.Assignee = &auth.UserSummary{
+			ID:       int(uAssID.Int64),
+			Email:    uAssEmail.String,
+			FullName: uAssName.String,
+			Role:     auth.Role(uAssRole.String),
+		}
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("check affected rows failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-
-	return nil
+	return &t, nil
 }

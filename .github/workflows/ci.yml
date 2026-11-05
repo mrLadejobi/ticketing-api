@@ -1,0 +1,65 @@
+name: Enterprise CI Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-and-verify:
+    name: Lint, Test & Validate
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ticketing_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Go 1.23
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Install Dependencies
+        run: go mod download
+
+      - name: Go Vet Analysis
+        run: go vet ./...
+
+      - name: Run Test Suite with Race Detector
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: ticketing_db
+          DB_SSL_MODE: disable
+        run: go test -v -race -cover ./...
+
+      - name: Validate OpenAPI 3.0 Specification
+        run: |
+          python3 -m json.tool internal/docs/openapi.json > /dev/null
+          echo "✅ OpenAPI 3.0 specification is valid JSON"
+
+      - name: Build Static Production Binaries
+        run: |
+          CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/server ./cmd/server
+          CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/seed ./cmd/seed
+          echo "✅ Static binaries built successfully"
+

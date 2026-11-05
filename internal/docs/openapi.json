@@ -1,0 +1,3927 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Enterprise Developer Ticketing & Issue Tracking API",
+    "description": "Production-grade Linear/Jira-style RESTful API featuring Multi-Team Scoping, Projects, Kanban Boards, Human-Readable Issue Keys (e.g. ENG-1), Optimistic Concurrency Control, and HttpOnly Cookie Auth.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Backend Architecture Team",
+      "email": "architecture@company.internal"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current Environment (Local or ngrok Public Tunnel)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "Health checks and service discovery"
+    },
+    {
+      "name": "Documentation",
+      "description": "Interactive API reference, Swagger UI, and OpenAPI schema"
+    },
+    {
+      "name": "Authentication",
+      "description": "Session lifecycle, bcrypt authentication, and HttpOnly cookie rotation"
+    },
+    {
+      "name": "Users",
+      "description": "User discovery and Admin RBAC role management"
+    },
+    {
+      "name": "Teams",
+      "description": "Team scoping and member assignments (Lead, Developer, Stakeholder)"
+    },
+    {
+      "name": "Projects",
+      "description": "Project prefixes, atomic key counters, and Kanban boards"
+    },
+    {
+      "name": "Tickets",
+      "description": "Enterprise issue tracking, human keys (ENG-1), soft deletes, and optimistic locking"
+    },
+    {
+      "name": "Collaboration",
+      "description": "Threaded comments with @mentions, ticket watchers (pub/sub), and file attachments"
+    },
+    {
+      "name": "Hierarchy & Relations",
+      "description": "Subtask hierarchies and directional issue relations (BLOCKS, IS_BLOCKED_BY, RELATES_TO, DUPLICATES)"
+    },
+    {
+      "name": "Labels",
+      "description": "Project-scoped taxonomy tags and ticket label assignments with customizable hex colors"
+    },
+    {
+      "name": "Cycles (Sprints)",
+      "description": "Agile iteration timeboxes, sprint capacity analytics, and ticket assignments"
+    },
+    {
+      "name": "Activity & Audit",
+      "description": "Immutable activity ledger tracking ticket field mutations and system-wide security audit logs"
+    },
+    {
+      "name": "API Keys",
+      "description": "Personal Access Tokens (PATs) for CI/CD pipelines, CLI automation, and programmatic API access"
+    },
+    {
+      "name": "Webhooks",
+      "description": "Git provider and CI/CD webhooks for automated issue tracking, PR status sync, and branch linking"
+    },
+    {
+      "name": "Notifications",
+      "description": "In-app notifications for @mentions, ticket assignments, status transitions, and threaded comments"
+    },
+    {
+      "name": "Real-Time SSE",
+      "description": "Server-Sent Events streaming broker for live Kanban boards and instant notification pushes"
+    }
+  ],
+  "paths": {
+    "/docs": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "summary": "Scalar Interactive API Documentation",
+        "description": "Renders modern Scalar UI with live code generation and API testing console.",
+        "responses": {
+          "200": {
+            "description": "HTML Documentation Page",
+            "content": {
+              "text/html": {}
+            }
+          }
+        }
+      }
+    },
+    "/swagger": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "summary": "Classic Swagger UI",
+        "description": "Interactive Swagger UI explorer.",
+        "responses": {
+          "200": {
+            "description": "Swagger UI Page",
+            "content": {
+              "text/html": {}
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "summary": "OpenAPI 3.0.3 Specification",
+        "description": "Raw JSON schema for code generation, Postman, or TypeScript generators.",
+        "responses": {
+          "200": {
+            "description": "OpenAPI Specification",
+            "content": {
+              "application/json": {}
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Health Check",
+        "description": "Checks system availability and database status.",
+        "responses": {
+          "200": {
+            "description": "System Healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StandardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Register New User",
+        "description": "Registers a new user (role defaults safely to MEMBER without escalation) and sets HttpOnly access & refresh cookies.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "example": {
+                "full_name": "Dev Lead",
+                "email": "lead@company.com",
+                "password": "Password123!"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created and authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "409": {
+            "description": "Email already registered"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Login User",
+        "description": "Authenticates credentials and sets 15-minute access_token and 7-day refresh_token HttpOnly cookies.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "email": "lead@company.com",
+                "password": "Password123!"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid email or password"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Refresh Access Token",
+        "description": "Rotates access and refresh tokens using the refresh_token HttpOnly cookie (or body fallback).",
+        "responses": {
+          "200": {
+            "description": "Tokens refreshed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired refresh token"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Logout",
+        "description": "Destroys both access and refresh cookies by setting Max-Age=0.",
+        "responses": {
+          "200": {
+            "description": "Logged out successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Current User Profile",
+        "description": "Fetches profile of currently authenticated user.",
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List Platform Users",
+        "description": "Lists all users for assignment dropdowns.",
+        "responses": {
+          "200": {
+            "description": "List of user summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}/role": {
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Update User Role (Admin Guarded)",
+        "description": "Allows system ADMINs to promote/demote user roles (ADMIN, MEMBER, VIEWER).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRoleRequest"
+              },
+              "example": {
+                "role": "ADMIN"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: Requires ADMIN role"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/v1/teams": {
+      "post": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Create Team",
+        "description": "Creates an organizational team.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTeamRequest"
+              },
+              "example": {
+                "name": "Core Platform Engineering",
+                "slug": "core-platform",
+                "description": "Infrastructure, backend services, and APIs"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Team created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Slug already exists"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "List Teams",
+        "description": "Retrieves all teams.",
+        "responses": {
+          "200": {
+            "description": "List of teams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Team"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{id}": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Get Team by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found"
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{id}/members": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "List Team Members",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team members with user summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamMember"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Add Member to Team",
+        "description": "Assigns a user to a team with role LEAD, DEVELOPER, or STAKEHOLDER.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemberRequest"
+              },
+              "example": {
+                "user_id": 2,
+                "role": "DEVELOPER"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Member added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMember"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "User already in team"
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{id}/members/{user_id}": {
+      "delete": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Remove Member from Team",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member removed"
+          },
+          "404": {
+            "description": "Member not found"
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Create Project",
+        "description": "Creates a project scoped to a team with a unique prefix (e.g. ENG, PAY) used for sequential issue keys.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              },
+              "example": {
+                "team_id": 1,
+                "name": "Authentication & Gateway",
+                "prefix": "AUTH",
+                "description": "Unified OAuth and API Gateway"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Prefix already in use"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List Projects",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filter by Team ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Project"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Project by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/board": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Project Kanban Board",
+        "description": "Returns project tickets grouped into columns matching all 9 engineering lifecycle statuses for instant Kanban rendering.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Board columns and tickets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/bulk": {
+      "patch": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Bulk Mutate Tickets",
+        "description": "Atomically updates a batch of ticket IDs with new status, priority, assignee_id, or cycle_id inside a single database transaction.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkUpdateTicketsRequest"
+              },
+              "example": {
+                "ticket_ids": [
+                  1,
+                  2,
+                  3
+                ],
+                "status": "IN_PROGRESS",
+                "priority": "HIGH"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tickets updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "updated_count": {
+                      "type": "integer",
+                      "example": 3
+                    },
+                    "tickets": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Ticket"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "List & Filter Tickets",
+        "description": "Filter tickets by project_id, status (all 9 stages), priority, assignee_id, reporter_id, or search string.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "BACKLOG",
+                "TRIAGE",
+                "TODO",
+                "IN_PROGRESS",
+                "IN_REVIEW",
+                "QA_TESTING",
+                "BLOCKED",
+                "DONE",
+                "CANCELED"
+              ]
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LOW",
+                "MEDIUM",
+                "HIGH",
+                "URGENT"
+              ]
+            }
+          },
+          {
+            "name": "assignee_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "reporter_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated tickets with user summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedTicketsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Create Ticket",
+        "description": "Creates ticket under a project. Auto-assigns sequential key (e.g. AUTH-1) and sets reporter_id from authenticated session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTicketRequest"
+              },
+              "example": {
+                "project_id": 1,
+                "title": "Implement Redis Cache",
+                "description": "Add caching layer for user sessions",
+                "priority": "HIGH",
+                "assignee_id": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ticket created with key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SingleTicketResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Get Ticket by Numeric ID or Key (e.g. ENG-1)",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "AUTH-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticket details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SingleTicketResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Update Ticket (with Optimistic Locking)",
+        "description": "Updates status, priority, title, or assignee. Protects against concurrent lost updates via version field or If-Match header.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Expected ticket version for optimistic locking"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTicketRequest"
+              },
+              "example": {
+                "status": "IN_REVIEW",
+                "version": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ticket updated and version incremented",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SingleTicketResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Optimistic lock conflict: ticket modified by another user"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Soft Delete Ticket",
+        "description": "Sets deleted_at timestamp. Excludes from standard queries but preserves data for audit and restore.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticket soft deleted"
+          },
+          "404": {
+            "description": "Ticket not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/restore": {
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Restore Soft-Deleted Ticket (Admin Only)",
+        "description": "Restores a soft-deleted ticket by clearing deleted_at.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticket restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SingleTicketResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: Admin only"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/comments": {
+      "get": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "List Ticket Comments",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of comments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Comment"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "Add Comment to Ticket",
+        "description": "Appends a Markdown comment and automatically parses @mentions or @emails.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentRequest"
+              },
+              "example": {
+                "body": "Checked PR. CC @lead@company.com and @alice."
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Comment added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/comments/{comment_id}": {
+      "patch": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "Update Comment (Author or Admin Only)",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Comment updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: Author or Admin only"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "Delete Comment (Author or Admin Only, Soft Delete)",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comment soft deleted"
+          },
+          "403": {
+            "description": "Forbidden: Author or Admin only"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/watchers": {
+      "get": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "List Ticket Watchers",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of watchers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Watcher"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "Subscribe as Watcher",
+        "description": "Subscribes user to ticket events. Defaults to current user if body is empty.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWatcherRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscribed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Watcher"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already watching"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "Unsubscribe Current User from Ticket",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unsubscribed"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/watchers/{user_id}": {
+      "delete": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "Remove Specific Watcher from Ticket",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Watcher removed"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/attachments": {
+      "get": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "List Attachments for Ticket",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of attachments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Attachment"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Collaboration"
+        ],
+        "summary": "Upload File Attachment",
+        "description": "Accepts multipart/form-data with file field.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Attachment uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Attachment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/subtasks": {
+      "get": {
+        "tags": [
+          "Hierarchy & Relations"
+        ],
+        "summary": "List Subtasks for Parent Issue",
+        "description": "Returns all active child issues / subtasks linked to this parent ticket.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ENG-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of subtasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ticket"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Parent ticket not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/relations": {
+      "get": {
+        "tags": [
+          "Hierarchy & Relations"
+        ],
+        "summary": "List Ticket Relations",
+        "description": "Returns directional relation links (BLOCKS, IS_BLOCKED_BY, RELATES_TO, DUPLICATES) with embedded ticket summaries.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ENG-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of relations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TicketRelation"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Hierarchy & Relations"
+        ],
+        "summary": "Create Issue Relation",
+        "description": "Links this ticket to another ticket with a relationship type (BLOCKS, IS_BLOCKED_BY, RELATES_TO, DUPLICATES). Target can be numeric ID or string key.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ENG-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRelationRequest"
+              },
+              "example": {
+                "target_ticket_id_or_key": "ENG-2",
+                "relation_type": "BLOCKS"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Relation created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketRelation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot relate ticket to itself or invalid arguments"
+          },
+          "409": {
+            "description": "Relation already exists"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/relations/{relation_id}": {
+      "delete": {
+        "tags": [
+          "Hierarchy & Relations"
+        ],
+        "summary": "Delete Issue Relation",
+        "description": "Removes the relation link between tickets.",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ENG-1"
+          },
+          {
+            "name": "relation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relation deleted"
+          },
+          "404": {
+            "description": "Relation not found"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/labels": {
+      "get": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "List Project Labels",
+        "description": "Returns all labels configured for the project.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of project labels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectLabel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "Create Project Label",
+        "description": "Creates a new category label under the project with a custom hex color.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLabelRequest"
+              },
+              "example": {
+                "name": "critical-bug",
+                "color_hex": "#EF4444"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Label created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLabel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid color format"
+          },
+          "409": {
+            "description": "Label name already exists in project"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/labels": {
+      "get": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "List Labels for Ticket",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ENG-1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of attached labels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectLabel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "Attach Label to Ticket",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ENG-1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTicketLabelRequest"
+              },
+              "example": {
+                "label_id": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Label attached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectLabel"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Label is already attached to this ticket"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/labels/{label_id}": {
+      "delete": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "Remove Label from Ticket",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ENG-1"
+          },
+          {
+            "name": "label_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Label removed from ticket"
+          },
+          "404": {
+            "description": "Label attachment not found"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/cycles": {
+      "get": {
+        "tags": [
+          "Cycles (Sprints)"
+        ],
+        "summary": "List Project Cycles",
+        "description": "Returns all agile sprint cycles planned, active, or completed in this project.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of project cycles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Cycle"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Cycles (Sprints)"
+        ],
+        "summary": "Create Project Cycle",
+        "description": "Plans a new agile sprint iteration timebox with start and end dates.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCycleRequest"
+              },
+              "example": {
+                "name": "Sprint 24 - Core Engine",
+                "goal": "Ship high-throughput queue consumers",
+                "start_date": "2026-11-01T00:00:00Z",
+                "end_date": "2026-11-14T23:59:59Z",
+                "status": "ACTIVE"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cycle created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid date range (start_date must be before end_date)"
+          }
+        }
+      }
+    },
+    "/api/v1/cycles/{id}": {
+      "get": {
+        "tags": [
+          "Cycles (Sprints)"
+        ],
+        "summary": "Get Cycle Details",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cycle metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cycle not found"
+          }
+        }
+      }
+    },
+    "/api/v1/cycles/{id}/tickets": {
+      "get": {
+        "tags": [
+          "Cycles (Sprints)"
+        ],
+        "summary": "List Tickets in Cycle",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of tickets assigned to cycle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ticket"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Cycles (Sprints)"
+        ],
+        "summary": "Assign Tickets to Cycle",
+        "description": "Batch assigns ticket IDs to this agile sprint cycle.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignCycleTicketsRequest"
+              },
+              "example": {
+                "ticket_ids": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tickets assigned to cycle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assigned_count": {
+                      "type": "integer",
+                      "example": 3
+                    },
+                    "cycle_id": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "tickets": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Ticket"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cycles/{id}/analytics": {
+      "get": {
+        "tags": [
+          "Cycles (Sprints)"
+        ],
+        "summary": "Sprint Analytics & Velocity Metrics",
+        "description": "Returns total issues, completed count, completion percentage, and breakdown by status and priority.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cycle analytics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CycleAnalytics"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cycle not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id_or_key}/activity": {
+      "get": {
+        "tags": [
+          "Activity & Audit"
+        ],
+        "summary": "Get ticket activity history",
+        "description": "Returns a chronologically ordered, paginated activity ledger for the given ticket (tracking status, priority, assignee, cycle changes).",
+        "parameters": [
+          {
+            "name": "id_or_key",
+            "in": "path",
+            "required": true,
+            "description": "Numeric ticket ID or project issue key (e.g. ENG-1)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size limit (default 20, max 100)",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Pagination offset",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chronological ticket activity ledger",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TicketActivity"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "example": 15
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket not found"
+          }
+        }
+      }
+    },
+    "/api/v1/audit-logs": {
+      "get": {
+        "tags": [
+          "Activity & Audit"
+        ],
+        "summary": "Get system audit logs (Admin only)",
+        "description": "Chronological system-wide security, mutation, and administrative audit logs. Requires ADMIN role.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size limit (default 20, max 100)",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Pagination offset",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "System audit logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditLog"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "example": 54
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - requires ADMIN role"
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "List personal access tokens",
+        "description": "List all personal access tokens for the authenticated user (raw secrets are omitted; prefix and usage timestamp shown).",
+        "responses": {
+          "200": {
+            "description": "Active API keys for the current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/APIKey"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Create personal access token",
+        "description": "Generate a new Personal Access Token (`pat_...`) with SHA-256 storage. The plaintext token is displayed only once upon creation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAPIKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "API Key generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CreateAPIKeyResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input parameters"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/{id}": {
+      "delete": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Revoke personal access token",
+        "description": "Permanently revokes the specified API key belonging to the authenticated user.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Numeric API key ID",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key revoked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "API key revoked"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "API key not found"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/git": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Git CI/CD webhook receiver",
+        "description": "Receives GitHub/GitLab webhook events (pull_request, push) with optional HMAC-SHA256 signature verification. Automatically parses ticket keys (e.g. ENG-12), moves tickets to IN_REVIEW on PR opened/synchronized, moves tickets to DONE on PR merged, and appends automated system collaboration comments.",
+        "parameters": [
+          {
+            "name": "X-Hub-Signature-256",
+            "in": "header",
+            "required": false,
+            "description": "HMAC-SHA256 hex signature prefixed with sha256=",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitWebhookPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook handled successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Webhook processed successfully"
+                        },
+                        "tickets_processed": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "example": [
+                            "ENG-12",
+                            "ENG-15"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request or missing payload"
+          },
+          "401": {
+            "description": "Invalid webhook signature"
+          }
+        }
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List notifications",
+        "description": "Returns a chronologically ordered, paginated list of in-app notifications for the authenticated user, optionally filtered by unread status.",
+        "parameters": [
+          {
+            "name": "unread_only",
+            "in": "query",
+            "description": "Filter strictly to unread notifications (true/false)",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size limit (default 20, max 100)",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Pagination offset",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "example": 5
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{id}/read": {
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark notification as read",
+        "description": "Marks a specific notification belonging to the authenticated user as read.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Numeric notification ID",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification marked as read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Notification marked as read"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Notification not found"
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark all notifications as read",
+        "description": "Marks all unread notifications belonging to the authenticated user as read in a single batch operation.",
+        "responses": {
+          "200": {
+            "description": "All notifications marked as read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "All notifications marked as read"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/events/stream": {
+      "get": {
+        "tags": [
+          "Real-Time SSE"
+        ],
+        "summary": "Server-Sent Events (SSE) live stream",
+        "description": "Establishes a persistent Server-Sent Events (SSE) connection streaming real-time JSON events (`ticket.updated`, `comment.created`, `notification.new`). Sends heartbeat `: ping\n\n` comments every 25 seconds to keep the HTTP socket open.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Optional project ID filter to receive scoped board mutations",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Continuous text/event-stream response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "example": "event: connected\ndata: {\"status\":\"connected\",\"user_id\":1}\n\n"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "email": {
+            "type": "string",
+            "example": "lead@company.com"
+          },
+          "full_name": {
+            "type": "string",
+            "example": "Dev Lead"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "MEMBER",
+              "VIEWER"
+            ],
+            "example": "ADMIN"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UserSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "email": {
+            "type": "string",
+            "example": "lead@company.com"
+          },
+          "full_name": {
+            "type": "string",
+            "example": "Dev Lead"
+          },
+          "role": {
+            "type": "string",
+            "example": "ADMIN"
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "full_name"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "engineer@company.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "example": "Password123!"
+          },
+          "full_name": {
+            "type": "string",
+            "example": "Staff Engineer"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "engineer@company.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "Password123!"
+          }
+        }
+      },
+      "UpdateUserRoleRequest": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "MEMBER",
+              "VIEWER"
+            ]
+          }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          }
+        }
+      },
+      "Team": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Core Platform"
+          },
+          "slug": {
+            "type": "string",
+            "example": "core-platform"
+          },
+          "description": {
+            "type": "string",
+            "example": "Infrastructure and backend APIs"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TeamMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "team_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 2
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "LEAD",
+              "DEVELOPER",
+              "STAKEHOLDER"
+            ],
+            "example": "DEVELOPER"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateTeamRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "slug"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Core Platform"
+          },
+          "slug": {
+            "type": "string",
+            "example": "core-platform"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "AddMemberRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 2
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "LEAD",
+              "DEVELOPER",
+              "STAKEHOLDER"
+            ],
+            "example": "DEVELOPER"
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "team_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Authentication Service"
+          },
+          "prefix": {
+            "type": "string",
+            "example": "AUTH"
+          },
+          "description": {
+            "type": "string"
+          },
+          "issue_counter": {
+            "type": "integer",
+            "example": 14
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "ACTIVE",
+              "PAUSED",
+              "COMPLETED"
+            ],
+            "example": "ACTIVE"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateProjectRequest": {
+        "type": "object",
+        "required": [
+          "team_id",
+          "name",
+          "prefix"
+        ],
+        "properties": {
+          "team_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Authentication Service"
+          },
+          "prefix": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 5,
+            "example": "AUTH"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "ACTIVE",
+              "PAUSED",
+              "COMPLETED"
+            ]
+          }
+        }
+      },
+      "BoardColumn": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "IN_PROGRESS"
+          },
+          "count": {
+            "type": "integer",
+            "example": 3
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Ticket"
+            }
+          }
+        }
+      },
+      "BoardResponse": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardColumn"
+            }
+          }
+        }
+      },
+      "Ticket": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 5
+          },
+          "cycle_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "key": {
+            "type": "string",
+            "example": "AUTH-1"
+          },
+          "title": {
+            "type": "string",
+            "example": "Implement Rate Limiting"
+          },
+          "description": {
+            "type": "string",
+            "example": "Add token bucket rate limiter to login endpoints"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "BACKLOG",
+              "TRIAGE",
+              "TODO",
+              "IN_PROGRESS",
+              "IN_REVIEW",
+              "QA_TESTING",
+              "BLOCKED",
+              "DONE",
+              "CANCELED"
+            ],
+            "example": "TODO"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ],
+            "example": "HIGH"
+          },
+          "reporter_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "reporter": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 2
+          },
+          "assignee": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "version": {
+            "type": "integer",
+            "example": 1
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateTicketRequest": {
+        "type": "object",
+        "required": [
+          "project_id",
+          "title",
+          "description",
+          "priority"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 5
+          },
+          "cycle_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200,
+            "example": "Implement Rate Limiting"
+          },
+          "description": {
+            "type": "string",
+            "example": "Add token bucket rate limiter"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ],
+            "example": "HIGH"
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 2
+          }
+        }
+      },
+      "UpdateTicketRequest": {
+        "type": "object",
+        "properties": {
+          "parent_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "cycle_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "BACKLOG",
+              "TRIAGE",
+              "TODO",
+              "IN_PROGRESS",
+              "IN_REVIEW",
+              "QA_TESTING",
+              "BLOCKED",
+              "DONE",
+              "CANCELED"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "description": "Optimistic lock check",
+            "example": 1
+          }
+        }
+      },
+      "SingleTicketResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/Ticket"
+          }
+        }
+      },
+      "PaginatedTicketsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Ticket"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "example": 45
+              },
+              "limit": {
+                "type": "integer",
+                "example": 20
+              },
+              "offset": {
+                "type": "integer",
+                "example": 0
+              },
+              "has_more": {
+                "type": "boolean",
+                "example": true
+              }
+            }
+          }
+        }
+      },
+      "Comment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "ticket_id": {
+            "type": "integer",
+            "example": 10
+          },
+          "author_id": {
+            "type": "integer",
+            "example": 2
+          },
+          "author": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "body": {
+            "type": "string",
+            "example": "Checked the logs. @alice please review."
+          },
+          "mentions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "alice",
+              "lead@company.com"
+            ]
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateCommentRequest": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "example": "Checked PR. CC @lead@company.com and @alice."
+          }
+        }
+      },
+      "UpdateCommentRequest": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "example": "Updated comment description with steps to reproduce."
+          }
+        }
+      },
+      "Watcher": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "ticket_id": {
+            "type": "integer",
+            "example": 10
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 2
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AddWatcherRequest": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "Optional: user to subscribe. Defaults to authenticated user.",
+            "example": 3
+          }
+        }
+      },
+      "Attachment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "ticket_id": {
+            "type": "integer",
+            "example": 10
+          },
+          "uploader_id": {
+            "type": "integer",
+            "example": 2
+          },
+          "uploader": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "file_name": {
+            "type": "string",
+            "example": "stacktrace.log"
+          },
+          "file_size": {
+            "type": "integer",
+            "example": 1402
+          },
+          "content_type": {
+            "type": "string",
+            "example": "text/plain"
+          },
+          "file_url": {
+            "type": "string",
+            "example": "/uploads/550e8400-e29b-41d4-a716-446655440000.log"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TicketRelation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "source_ticket_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "source_ticket": {
+            "$ref": "#/components/schemas/Ticket"
+          },
+          "target_ticket_id": {
+            "type": "integer",
+            "example": 2
+          },
+          "target_ticket": {
+            "$ref": "#/components/schemas/Ticket"
+          },
+          "relation_type": {
+            "type": "string",
+            "enum": [
+              "BLOCKS",
+              "IS_BLOCKED_BY",
+              "RELATES_TO",
+              "DUPLICATES"
+            ],
+            "example": "BLOCKS"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateRelationRequest": {
+        "type": "object",
+        "required": [
+          "target_ticket_id_or_key",
+          "relation_type"
+        ],
+        "properties": {
+          "target_ticket_id_or_key": {
+            "type": "string",
+            "example": "ENG-2"
+          },
+          "relation_type": {
+            "type": "string",
+            "enum": [
+              "BLOCKS",
+              "IS_BLOCKED_BY",
+              "RELATES_TO",
+              "DUPLICATES"
+            ],
+            "example": "BLOCKS"
+          }
+        }
+      },
+      "ProjectLabel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "security"
+          },
+          "color_hex": {
+            "type": "string",
+            "example": "#EF4444"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateLabelRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "color_hex"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "security"
+          },
+          "color_hex": {
+            "type": "string",
+            "example": "#EF4444"
+          }
+        }
+      },
+      "AddTicketLabelRequest": {
+        "type": "object",
+        "required": [
+          "label_id"
+        ],
+        "properties": {
+          "label_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "Cycle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Sprint 24"
+          },
+          "goal": {
+            "type": "string",
+            "example": "Distributed caching"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "ACTIVE",
+              "COMPLETED"
+            ],
+            "example": "ACTIVE"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateCycleRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "start_date",
+          "end_date"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Sprint 24"
+          },
+          "goal": {
+            "type": "string",
+            "example": "Distributed caching"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T00:00:00Z"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-14T23:59:59Z"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "ACTIVE",
+              "COMPLETED"
+            ],
+            "example": "PLANNED"
+          }
+        }
+      },
+      "AssignCycleTicketsRequest": {
+        "type": "object",
+        "required": [
+          "ticket_ids"
+        ],
+        "properties": {
+          "ticket_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "example": [
+              1,
+              2,
+              3
+            ]
+          }
+        }
+      },
+      "CycleAnalytics": {
+        "type": "object",
+        "properties": {
+          "cycle_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "cycle_name": {
+            "type": "string",
+            "example": "Sprint 24"
+          },
+          "total_tickets": {
+            "type": "integer",
+            "example": 10
+          },
+          "completed_tickets": {
+            "type": "integer",
+            "example": 7
+          },
+          "completion_percentage": {
+            "type": "number",
+            "example": 70.0
+          },
+          "status_breakdown": {
+            "type": "object",
+            "example": {
+              "TODO": 2,
+              "IN_PROGRESS": 1,
+              "DONE": 7
+            }
+          },
+          "priority_breakdown": {
+            "type": "object",
+            "example": {
+              "LOW": 1,
+              "MEDIUM": 5,
+              "HIGH": 4
+            }
+          }
+        }
+      },
+      "BulkUpdateTicketsRequest": {
+        "type": "object",
+        "required": [
+          "ticket_ids"
+        ],
+        "properties": {
+          "ticket_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "example": [
+              1,
+              2,
+              3
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "BACKLOG",
+              "TRIAGE",
+              "TODO",
+              "IN_PROGRESS",
+              "IN_REVIEW",
+              "QA_TESTING",
+              "BLOCKED",
+              "DONE",
+              "CANCELED"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "URGENT"
+            ]
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "cycle_id": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "StandardResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "TicketActivity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 101
+          },
+          "ticket_id": {
+            "type": "integer",
+            "example": 42
+          },
+          "actor_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "actor": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "field": {
+            "type": "string",
+            "example": "status"
+          },
+          "old_value": {
+            "type": "string",
+            "example": "TODO"
+          },
+          "new_value": {
+            "type": "string",
+            "example": "IN_PROGRESS"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 501
+          },
+          "actor_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "actor": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "action": {
+            "type": "string",
+            "example": "USER_ROLE_UPDATED"
+          },
+          "resource_type": {
+            "type": "string",
+            "example": "user"
+          },
+          "resource_id": {
+            "type": "string",
+            "example": "3"
+          },
+          "payload": {
+            "type": "string",
+            "example": "{\"old_role\":\"MEMBER\",\"new_role\":\"ADMIN\"}"
+          },
+          "ip_address": {
+            "type": "string",
+            "example": "127.0.0.1"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "APIKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 3
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "CI GitHub Actions Deploy Key"
+          },
+          "prefix": {
+            "type": "string",
+            "example": "pat_9f81a7"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateAPIKeyRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "CLI Workspace Token"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2027-01-01T00:00:00Z"
+          }
+        }
+      },
+      "CreateAPIKeyResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 3
+          },
+          "name": {
+            "type": "string",
+            "example": "CLI Workspace Token"
+          },
+          "token": {
+            "type": "string",
+            "example": "pat_9f81a7b3c2d4e5f60718293a4b5c6d7e"
+          },
+          "prefix": {
+            "type": "string",
+            "example": "pat_9f81a7"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GitWebhookPayload": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "example": "opened",
+            "enum": [
+              "opened",
+              "closed",
+              "synchronize",
+              "reopened"
+            ]
+          },
+          "pull_request": {
+            "type": "object",
+            "properties": {
+              "number": {
+                "type": "integer",
+                "example": 42
+              },
+              "title": {
+                "type": "string",
+                "example": "feat(core): implement ENG-12 authentication and audit ledger"
+              },
+              "body": {
+                "type": "string",
+                "example": "Fixes ENG-12. Added full ledger and PAT support."
+              },
+              "html_url": {
+                "type": "string",
+                "example": "https://github.com/org/repo/pull/42"
+              },
+              "merged": {
+                "type": "boolean",
+                "example": false
+              },
+              "head": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "example": "feat/ENG-12-ledger"
+                  }
+                }
+              }
+            }
+          },
+          "commits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "example": "a1b2c3d"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "feat(ENG-12): add activity tracking"
+                },
+                "url": {
+                  "type": "string",
+                  "example": "https://github.com/org/repo/commit/a1b2c3d"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 10
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "actor_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 2
+          },
+          "actor": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "ticket_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 42
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "MENTION",
+              "ASSIGNED",
+              "STATUS_CHANGED",
+              "COMMENT_ADDED"
+            ],
+            "example": "MENTION"
+          },
+          "title": {
+            "type": "string",
+            "example": "Sarah Connor mentioned you in ENG-42"
+          },
+          "body": {
+            "type": "string",
+            "example": "Hey @lead, please review the PR when you get a chance."
+          },
+          "is_read": {
+            "type": "boolean",
+            "example": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}
