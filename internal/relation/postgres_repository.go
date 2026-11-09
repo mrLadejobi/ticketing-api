@@ -124,6 +124,10 @@ func (r *PostgresRepository) ListByTicketID(ctx context.Context, ticketID int) (
 		result = append(result, rel)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate relations failed: %w", err)
+	}
+
 	return result, nil
 }
 

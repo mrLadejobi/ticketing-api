@@ -161,6 +161,10 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter)
 		tickets = append(tickets, *t)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate tickets failed: %w", err)
+	}
+
 	return tickets, total, nil
 }
 
@@ -317,6 +321,9 @@ func (r *PostgresRepository) ListSubtasks(ctx context.Context, parentID int) ([]
 		}
 		tickets = append(tickets, *t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate subtasks failed: %w", err)
+	}
 	return tickets, nil
 }
 
@@ -345,6 +352,9 @@ func (r *PostgresRepository) ListByCycle(ctx context.Context, cycleID int) ([]Ti
 			return nil, err
 		}
 		tickets = append(tickets, *t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate subtasks failed: %w", err)
 	}
 	return tickets, nil
 }

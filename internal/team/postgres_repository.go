@@ -83,6 +83,9 @@ func (r *PostgresRepository) ListTeams(ctx context.Context) ([]Team, error) {
 		}
 		teams = append(teams, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate teams failed: %w", err)
+	}
 	return teams, nil
 }
 
@@ -151,6 +154,9 @@ func (r *PostgresRepository) ListMembers(ctx context.Context, teamID int) ([]Tea
 		}
 		tm.User = &u
 		members = append(members, tm)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate team members failed: %w", err)
 	}
 	return members, nil
 }

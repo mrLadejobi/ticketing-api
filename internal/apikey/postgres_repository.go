@@ -86,6 +86,10 @@ func (r *PostgresRepository) ListByUserID(ctx context.Context, userID int) ([]AP
 		keys = append(keys, key)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate api keys failed: %w", err)
+	}
+
 	return keys, nil
 }
 

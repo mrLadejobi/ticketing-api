@@ -102,6 +102,10 @@ func (r *PostgresRepository) ListTicketActivities(ctx context.Context, ticketID 
 		list = append(list, act)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate ticket activities failed: %w", err)
+	}
+
 	return list, total, nil
 }
 
@@ -173,6 +177,10 @@ func (r *PostgresRepository) ListAuditLogs(ctx context.Context, limit, offset in
 			}
 		}
 		list = append(list, l)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate audit logs failed: %w", err)
 	}
 
 	return list, total, nil

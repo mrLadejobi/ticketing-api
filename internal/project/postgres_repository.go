@@ -99,6 +99,9 @@ func (r *PostgresRepository) ListProjects(ctx context.Context, teamID *int) ([]P
 		}
 		projects = append(projects, p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate projects failed: %w", err)
+	}
 	return projects, nil
 }
 

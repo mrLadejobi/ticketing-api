@@ -84,6 +84,10 @@ func (r *PostgresRepository) ListByProjectID(ctx context.Context, projectID int)
 		cycles = append(cycles, c)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate cycles failed: %w", err)
+	}
+
 	return cycles, nil
 }
 

@@ -145,6 +145,9 @@ func (r *PostgresRepository) ListCommentsByTicket(ctx context.Context, ticketID 
 		}
 		comments = append(comments, c)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate comments failed: %w", err)
+	}
 	return comments, nil
 }
 
@@ -217,6 +220,9 @@ func (r *PostgresRepository) ListWatchersByTicket(ctx context.Context, ticketID 
 		w.User = &u
 		watchers = append(watchers, w)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate watchers failed: %w", err)
+	}
 	return watchers, nil
 }
 
@@ -269,6 +275,9 @@ func (r *PostgresRepository) ListAttachmentsByTicket(ctx context.Context, ticket
 		}
 		a.Uploader = &u
 		attachments = append(attachments, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate attachments failed: %w", err)
 	}
 	return attachments, nil
 }

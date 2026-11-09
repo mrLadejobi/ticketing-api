@@ -126,6 +126,10 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListNotificationsF
 		list = append(list, n)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate notifications failed: %w", err)
+	}
+
 	return list, total, nil
 }
 

@@ -64,6 +64,9 @@ func (r *PostgresRepository) ListProjectLabels(ctx context.Context, projectID in
 		}
 		labels = append(labels, l)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project labels failed: %w", err)
+	}
 	return labels, nil
 }
 
@@ -120,6 +123,9 @@ func (r *PostgresRepository) ListTicketLabels(ctx context.Context, ticketID int)
 			return nil, fmt.Errorf("failed to scan ticket label: %w", err)
 		}
 		labels = append(labels, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project labels failed: %w", err)
 	}
 	return labels, nil
 }
