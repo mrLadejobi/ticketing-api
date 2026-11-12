@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"ticketing-api/internal/database"
 	"ticketing-api/internal/docs"
 	"ticketing-api/internal/label"
+	"ticketing-api/internal/metrics"
 	"ticketing-api/internal/middleware"
 	"ticketing-api/internal/notification"
 	"ticketing-api/internal/project"
@@ -52,10 +54,41 @@ func (a *ticketActivityAdapter) RecordTicketActivity(ctx context.Context, ticket
 	return err
 }
 
+type projectNotificationAdapter struct {
+	projects      *project.Service
+	notifications *notification.Service
+	hub           *realtime.Hub
+}
+
+func (p *projectNotificationAdapter) NotifyProjectFeatureAdded(ctx context.Context, projectID, actorID, ticketID int, key, title string) {
+	memberIDs, err := p.projects.ListMemberUserIDs(ctx, projectID)
+	if err == nil {
+		for _, uid := range memberIDs {
+			_, _ = p.notifications.Notify(
+				ctx, uid, &actorID, &ticketID,
+				notification.TypeFeatureAdded,
+				fmt.Sprintf("New Feature Added: %s", key),
+				title,
+			)
+		}
+	}
+	if p.hub != nil {
+		p.hub.BroadcastToProject(projectID, realtime.Event{
+			Type:    "feature.created",
+			Payload: map[string]any{"ticket_id": ticketID, "key": key, "title": title, "project_id": projectID},
+		})
+	}
+}
+
+func (p *projectNotificationAdapter) RecordProjectTicketLog(ctx context.Context, projectID int, actorID, ticketID *int, action, summary string) {
+	_ = p.projects.RecordProjectLog(ctx, projectID, actorID, ticketID, action, summary)
+}
+
 func main() {
-	// 1. Initialize Production Structured Logger
+	// 1. Initialize Production Structured Logger with source file/line tracking
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level:     slog.LevelInfo,
+		AddSource: true,
 	}))
 	slog.SetDefault(logger)
 
@@ -88,7 +121,7 @@ func main() {
 		memAuth := auth.NewMemoryRepository()
 		authRepo = memAuth
 		teamRepo = team.NewMemoryRepository(memAuth)
-		projectRepo = project.NewMemoryRepository()
+		projectRepo = project.NewMemoryRepository(memAuth)
 		ticketRepo = ticket.NewMemoryRepository(memAuth)
 		collabRepo = collab.NewMemoryRepository(memAuth)
 		relationRepo = relation.NewMemoryRepository(ticketRepo)
@@ -175,6 +208,14 @@ func main() {
 	notificationService := notification.NewService(notificationRepo, &notificationRealtimeBridge{hub: sseHub})
 	notificationHandler := notification.NewHandler(notificationService)
 
+	ticketService.SetProjectNotifier(&projectNotificationAdapter{
+		projects:      projectService,
+		notifications: notificationService,
+		hub:           sseHub,
+	})
+
+	metricsHandler := metrics.NewHandler(ticketService, authRepo, projectService)
+
 	// 6. Initialize Gin Engine with Custom Middleware Pipeline
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -247,6 +288,7 @@ func main() {
 		webhookHandler.RegisterRoutes(v1)
 		notificationHandler.RegisterRoutes(v1, authMiddleware)
 		sseHandler.RegisterRoutes(v1, authMiddleware)
+		metricsHandler.RegisterRoutes(v1, authMiddleware)
 	}
 
 	// 7. Production HTTP Server with Graceful Shutdown

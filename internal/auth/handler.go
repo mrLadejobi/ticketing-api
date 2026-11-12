@@ -62,7 +62,7 @@ func (h *Handler) Register(c *gin.Context) {
 			response.Error(c, http.StatusConflict, response.CodeConflict, "An account with this email already exists")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Registration failed")
+		response.InternalError(c, err, "Registration failed")
 		return
 	}
 
@@ -90,7 +90,7 @@ func (h *Handler) Login(c *gin.Context) {
 			response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid email or password")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Login failed")
+		response.InternalError(c, err, "Login failed")
 		return
 	}
 
@@ -187,7 +187,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "User not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to update user role")
+		response.InternalError(c, err, "Failed to update user role")
 		return
 	}
 
@@ -198,7 +198,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 func (h *Handler) ListUsers(c *gin.Context) {
 	users, err := h.service.ListUsers(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to list users")
+		response.InternalError(c, err, "Failed to list users")
 		return
 	}
 

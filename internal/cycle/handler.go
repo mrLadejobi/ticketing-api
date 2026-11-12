@@ -60,7 +60,7 @@ func (h *Handler) CreateProjectCycle(c *gin.Context) {
 				response.Error(c, http.StatusNotFound, response.CodeNotFound, "Project not found")
 				return
 			}
-			response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve project")
+			response.InternalError(c, err, "Failed to resolve project")
 			return
 		}
 	}
@@ -81,7 +81,7 @@ func (h *Handler) CreateProjectCycle(c *gin.Context) {
 			response.Error(c, http.StatusConflict, response.CodeConflict, "Cycle with this name already exists in project")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *Handler) ListProjectCycles(c *gin.Context) {
 
 	cycles, err := h.service.ListByProjectID(c.Request.Context(), projectID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -121,7 +121,7 @@ func (h *Handler) GetCycle(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Cycle not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -146,7 +146,7 @@ func (h *Handler) AssignTicketsToCycle(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Cycle not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -171,7 +171,7 @@ func (h *Handler) GetCycleAnalytics(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Cycle not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -191,7 +191,7 @@ func (h *Handler) ListCycleTickets(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Cycle not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 

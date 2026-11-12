@@ -49,7 +49,7 @@ func (h *Handler) CreateRelation(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Source ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve source ticket")
+		response.InternalError(c, err, "Failed to resolve source ticket")
 		return
 	}
 
@@ -65,7 +65,7 @@ func (h *Handler) CreateRelation(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Target ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve target ticket")
+		response.InternalError(c, err, "Failed to resolve target ticket")
 		return
 	}
 
@@ -84,7 +84,7 @@ func (h *Handler) CreateRelation(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, response.CodeInvalidArgument, "Cannot create a relation between a ticket and itself")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -99,13 +99,13 @@ func (h *Handler) ListRelations(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve ticket")
+		response.InternalError(c, err, "Failed to resolve ticket")
 		return
 	}
 
 	relations, err := h.service.ListByTicketID(c.Request.Context(), t.ID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *Handler) DeleteRelation(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket relation not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 

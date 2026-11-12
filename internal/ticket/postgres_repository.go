@@ -37,8 +37,8 @@ func NewPostgresRepository(db *sql.DB) *PostgresRepository {
 func (r *PostgresRepository) Create(ctx context.Context, t *Ticket) (*Ticket, error) {
 	query := `
 		INSERT INTO tickets (
-			project_id, parent_id, cycle_id, key, title, description, status, priority, reporter_id, assignee_id, version, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, $12)
+			project_id, parent_id, cycle_id, key, ticket_type, title, description, work_summary, status, priority, progress_percent, due_date, reporter_id, assignee_id, version, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 1, $15, $16)
 		RETURNING id, created_at, updated_at
 	`
 	now := time.Now().UTC()
@@ -46,12 +46,15 @@ func (r *PostgresRepository) Create(ctx context.Context, t *Ticket) (*Ticket, er
 	if t.Status == "" {
 		t.Status = StatusTodo
 	}
+	if t.TicketType == "" {
+		t.TicketType = TypeTask
+	}
 	t.CreatedAt = now
 	t.UpdatedAt = now
 
 	err := r.db.QueryRowContext(
 		ctx, query,
-		t.ProjectID, t.ParentID, t.CycleID, t.Key, t.Title, t.Description, t.Status, t.Priority, t.ReporterID, t.AssigneeID, t.CreatedAt, t.UpdatedAt,
+		t.ProjectID, t.ParentID, t.CycleID, t.Key, t.TicketType, t.Title, t.Description, t.WorkSummary, t.Status, t.Priority, t.ProgressPercent, t.DueDate, t.ReporterID, t.AssigneeID, t.CreatedAt, t.UpdatedAt,
 	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert ticket failed: %w", err)
@@ -84,6 +87,12 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter)
 	if filter.Status != nil {
 		whereClauses = append(whereClauses, fmt.Sprintf("t.status = $%d", argID))
 		args = append(args, *filter.Status)
+		argID++
+	}
+
+	if filter.TicketType != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("t.ticket_type = $%d", argID))
+		args = append(args, *filter.TicketType)
 		argID++
 	}
 
@@ -133,7 +142,7 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter)
 	}
 
 	dataQuery := fmt.Sprintf(`
-		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.title, t.description, t.status, t.priority,
+		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.ticket_type, t.title, t.description, t.work_summary, t.status, t.priority, t.progress_percent, t.due_date,
 		       t.reporter_id, t.assignee_id, t.version, t.deleted_at, t.created_at, t.updated_at,
 		       u_rep.id, u_rep.email, u_rep.full_name, u_rep.role,
 		       u_ass.id, u_ass.email, u_ass.full_name, u_ass.role
@@ -181,7 +190,7 @@ func (r *PostgresRepository) GetByIDOrKey(ctx context.Context, idOrKey string) (
 	}
 
 	query := fmt.Sprintf(`
-		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.title, t.description, t.status, t.priority,
+		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.ticket_type, t.title, t.description, t.work_summary, t.status, t.priority, t.progress_percent, t.due_date,
 		       t.reporter_id, t.assignee_id, t.version, t.deleted_at, t.created_at, t.updated_at,
 		       u_rep.id, u_rep.email, u_rep.full_name, u_rep.role,
 		       u_ass.id, u_ass.email, u_ass.full_name, u_ass.role
@@ -221,17 +230,29 @@ func (r *PostgresRepository) Update(ctx context.Context, id int, req UpdateTicke
 	if req.CycleID != nil {
 		current.CycleID = req.CycleID
 	}
+	if req.TicketType != nil {
+		current.TicketType = *req.TicketType
+	}
 	if req.Title != nil {
 		current.Title = *req.Title
 	}
 	if req.Description != nil {
 		current.Description = *req.Description
 	}
+	if req.WorkSummary != nil {
+		current.WorkSummary = *req.WorkSummary
+	}
 	if req.Status != nil {
 		current.Status = *req.Status
 	}
 	if req.Priority != nil {
 		current.Priority = *req.Priority
+	}
+	if req.ProgressPercent != nil {
+		current.ProgressPercent = req.ProgressPercent
+	}
+	if req.DueDate != nil {
+		current.DueDate = req.DueDate
 	}
 	if req.AssigneeID != nil {
 		current.AssigneeID = req.AssigneeID
@@ -240,11 +261,11 @@ func (r *PostgresRepository) Update(ctx context.Context, id int, req UpdateTicke
 
 	query := `
 		UPDATE tickets
-		SET parent_id = $1, cycle_id = $2, title = $3, description = $4, status = $5, priority = $6, assignee_id = $7,
-		    version = version + 1, updated_at = $8
-		WHERE id = $9 AND version = $10 AND deleted_at IS NULL
+		SET parent_id = $1, cycle_id = $2, ticket_type = $3, title = $4, description = $5, work_summary = $6, status = $7, priority = $8, progress_percent = $9, due_date = $10, assignee_id = $11,
+		    version = version + 1, updated_at = $12
+		WHERE id = $13 AND version = $14 AND deleted_at IS NULL
 	`
-	res, err := r.getExecutor(ctx).ExecContext(ctx, query, current.ParentID, current.CycleID, current.Title, current.Description, current.Status, current.Priority, current.AssigneeID, current.UpdatedAt, id, current.Version)
+	res, err := r.getExecutor(ctx).ExecContext(ctx, query, current.ParentID, current.CycleID, current.TicketType, current.Title, current.Description, current.WorkSummary, current.Status, current.Priority, current.ProgressPercent, current.DueDate, current.AssigneeID, current.UpdatedAt, id, current.Version)
 	if err != nil {
 		return nil, fmt.Errorf("update ticket failed: %w", err)
 	}
@@ -297,7 +318,7 @@ func (r *PostgresRepository) ListByProject(ctx context.Context, projectID int) (
 
 func (r *PostgresRepository) ListSubtasks(ctx context.Context, parentID int) ([]Ticket, error) {
 	query := `
-		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.title, t.description, t.status, t.priority,
+		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.ticket_type, t.title, t.description, t.work_summary, t.status, t.priority, t.progress_percent, t.due_date,
 		       t.reporter_id, t.assignee_id, t.version, t.deleted_at, t.created_at, t.updated_at,
 		       u_rep.id, u_rep.email, u_rep.full_name, u_rep.role,
 		       u_ass.id, u_ass.email, u_ass.full_name, u_ass.role
@@ -329,7 +350,7 @@ func (r *PostgresRepository) ListSubtasks(ctx context.Context, parentID int) ([]
 
 func (r *PostgresRepository) ListByCycle(ctx context.Context, cycleID int) ([]Ticket, error) {
 	query := `
-		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.title, t.description, t.status, t.priority,
+		SELECT t.id, t.project_id, t.parent_id, t.cycle_id, t.key, t.ticket_type, t.title, t.description, t.work_summary, t.status, t.priority, t.progress_percent, t.due_date,
 		       t.reporter_id, t.assignee_id, t.version, t.deleted_at, t.created_at, t.updated_at,
 		       u_rep.id, u_rep.email, u_rep.full_name, u_rep.role,
 		       u_ass.id, u_ass.email, u_ass.full_name, u_ass.role
@@ -444,19 +465,24 @@ func (r *PostgresRepository) BulkUpdate(ctx context.Context, req BulkUpdateTicke
 	return updated, nil
 }
 
-func scanTicket(rows *sql.Rows) (*Ticket, error) {
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTicketScanner(scanner rowScanner) (*Ticket, error) {
 	var t Ticket
-	var parentID, cycleID, uRepID, uAssID sql.NullInt64
+	var parentID, cycleID, progress, uRepID, uAssID sql.NullInt64
+	var dueDate sql.NullTime
 	var uRepEmail, uRepName, uRepRole sql.NullString
 	var uAssEmail, uAssName, uAssRole sql.NullString
 
-	if err := rows.Scan(
-		&t.ID, &t.ProjectID, &parentID, &cycleID, &t.Key, &t.Title, &t.Description, &t.Status, &t.Priority,
+	if err := scanner.Scan(
+		&t.ID, &t.ProjectID, &parentID, &cycleID, &t.Key, &t.TicketType, &t.Title, &t.Description, &t.WorkSummary, &t.Status, &t.Priority, &progress, &dueDate,
 		&t.ReporterID, &t.AssigneeID, &t.Version, &t.DeletedAt, &t.CreatedAt, &t.UpdatedAt,
 		&uRepID, &uRepEmail, &uRepName, &uRepRole,
 		&uAssID, &uAssEmail, &uAssName, &uAssRole,
 	); err != nil {
-		return nil, fmt.Errorf("scan ticket failed: %w", err)
+		return nil, err
 	}
 
 	if parentID.Valid {
@@ -466,6 +492,14 @@ func scanTicket(rows *sql.Rows) (*Ticket, error) {
 	if cycleID.Valid {
 		cid := int(cycleID.Int64)
 		t.CycleID = &cid
+	}
+	if progress.Valid {
+		p := int(progress.Int64)
+		t.ProgressPercent = &p
+	}
+	if dueDate.Valid {
+		d := dueDate.Time
+		t.DueDate = &d
 	}
 
 	if uRepID.Valid {
@@ -488,46 +522,14 @@ func scanTicket(rows *sql.Rows) (*Ticket, error) {
 	return &t, nil
 }
 
+func scanTicket(rows *sql.Rows) (*Ticket, error) {
+	t, err := scanTicketScanner(rows)
+	if err != nil {
+		return nil, fmt.Errorf("scan ticket failed: %w", err)
+	}
+	return t, nil
+}
+
 func scanTicketRow(row *sql.Row) (*Ticket, error) {
-	var t Ticket
-	var parentID, cycleID, uRepID, uAssID sql.NullInt64
-	var uRepEmail, uRepName, uRepRole sql.NullString
-	var uAssEmail, uAssName, uAssRole sql.NullString
-
-	if err := row.Scan(
-		&t.ID, &t.ProjectID, &parentID, &cycleID, &t.Key, &t.Title, &t.Description, &t.Status, &t.Priority,
-		&t.ReporterID, &t.AssigneeID, &t.Version, &t.DeletedAt, &t.CreatedAt, &t.UpdatedAt,
-		&uRepID, &uRepEmail, &uRepName, &uRepRole,
-		&uAssID, &uAssEmail, &uAssName, &uAssRole,
-	); err != nil {
-		return nil, err
-	}
-
-	if parentID.Valid {
-		pid := int(parentID.Int64)
-		t.ParentID = &pid
-	}
-	if cycleID.Valid {
-		cid := int(cycleID.Int64)
-		t.CycleID = &cid
-	}
-
-	if uRepID.Valid {
-		t.Reporter = &auth.UserSummary{
-			ID:       int(uRepID.Int64),
-			Email:    uRepEmail.String,
-			FullName: uRepName.String,
-			Role:     auth.Role(uRepRole.String),
-		}
-	}
-	if uAssID.Valid {
-		t.Assignee = &auth.UserSummary{
-			ID:       int(uAssID.Int64),
-			Email:    uAssEmail.String,
-			FullName: uAssName.String,
-			Role:     auth.Role(uAssRole.String),
-		}
-	}
-
-	return &t, nil
+	return scanTicketScanner(row)
 }

@@ -55,6 +55,9 @@ func (r *MemoryRepository) Create(ctx context.Context, t *Ticket) (*Ticket, erro
 	if t.Status == "" {
 		t.Status = StatusTodo
 	}
+	if t.TicketType == "" {
+		t.TicketType = TypeTask
+	}
 	t.Version = 1
 	t.CreatedAt = now
 	t.UpdatedAt = now
@@ -86,6 +89,9 @@ func (r *MemoryRepository) List(ctx context.Context, filter ListTicketsFilter) (
 			}
 		}
 		if filter.Status != nil && t.Status != *filter.Status {
+			continue
+		}
+		if filter.TicketType != nil && t.TicketType != *filter.TicketType {
 			continue
 		}
 		if filter.Priority != nil && t.Priority != *filter.Priority {
@@ -170,11 +176,23 @@ func (r *MemoryRepository) Update(ctx context.Context, id int, req UpdateTicketR
 	if req.Description != nil {
 		t.Description = *req.Description
 	}
+	if req.WorkSummary != nil {
+		t.WorkSummary = *req.WorkSummary
+	}
+	if req.TicketType != nil {
+		t.TicketType = *req.TicketType
+	}
 	if req.Status != nil {
 		t.Status = *req.Status
 	}
 	if req.Priority != nil {
 		t.Priority = *req.Priority
+	}
+	if req.ProgressPercent != nil {
+		t.ProgressPercent = req.ProgressPercent
+	}
+	if req.DueDate != nil {
+		t.DueDate = req.DueDate
 	}
 	if req.AssigneeID != nil {
 		t.AssigneeID = req.AssigneeID

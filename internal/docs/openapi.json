@@ -79,6 +79,10 @@
     {
       "name": "Real-Time SSE",
       "description": "Server-Sent Events streaming broker for live Kanban boards and instant notification pushes"
+    },
+    {
+      "name": "Metrics & Analytics",
+      "description": "Per-person productivity stats, immediate-attention task tracking, detailed work summaries, and project metrics"
     }
   ],
   "paths": {
@@ -678,6 +682,70 @@
           },
           "404": {
             "description": "Project not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Update project status, timeline dates, and optional progress %",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "PLANNED",
+                      "STARTED",
+                      "IN_PROGRESS",
+                      "ON_HOLD",
+                      "ACTIVE",
+                      "PAUSED",
+                      "COMPLETED"
+                    ]
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "due_date": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "progress_percent": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project updated"
           }
         }
       }
@@ -2583,6 +2651,233 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{id}/members": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List project members",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of project members"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Add a user to a project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user_id"
+                ],
+                "properties": {
+                  "user_id": {
+                    "type": "integer",
+                    "example": 2
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "OWNER",
+                      "MEMBER",
+                      "VIEWER"
+                    ],
+                    "example": "MEMBER"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Member added"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/members/{user_id}": {
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Remove a member from a project (Project creator or Admin only)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member removed"
+          },
+          "403": {
+            "description": "Forbidden - only project creator or admin can remove members"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/timeline": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get project timeline ordered by due dates with overdue flags",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project timeline"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/logs": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get chronological project activity logs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated project logs"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/metrics": {
+      "get": {
+        "tags": [
+          "Metrics & Analytics"
+        ],
+        "summary": "Get project completion stats, overdue tasks, and per-member breakdown",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project metrics"
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/metrics": {
+      "get": {
+        "tags": [
+          "Metrics & Analytics"
+        ],
+        "summary": "Get current user productivity stats, tasks needing attention, and work history",
+        "responses": {
+          "200": {
+            "description": "User metrics"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}/metrics": {
+      "get": {
+        "tags": [
+          "Metrics & Analytics"
+        ],
+        "summary": "Get metrics and detailed work summary for a specific user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User metrics"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2861,6 +3156,28 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "creator_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "progress_percent": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 100,
+            "example": 40
           }
         }
       },
@@ -3022,6 +3339,32 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "ticket_type": {
+            "type": "string",
+            "enum": [
+              "FEATURE",
+              "BUG",
+              "TASK",
+              "SUBTASK"
+            ],
+            "example": "FEATURE"
+          },
+          "work_summary": {
+            "type": "string",
+            "example": "Implemented JWT rotation and verified unit tests."
+          },
+          "progress_percent": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 100,
+            "example": 60
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         }
       },
@@ -3915,6 +4258,71 @@
           "is_read": {
             "type": "boolean",
             "example": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 2
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "MEMBER",
+              "VIEWER"
+            ],
+            "example": "MEMBER"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 12
+          },
+          "project_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "actor_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1
+          },
+          "ticket_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 5
+          },
+          "action": {
+            "type": "string",
+            "example": "FEATURE_ADDED"
+          },
+          "summary": {
+            "type": "string",
+            "example": "New feature ENG-5: SSE Real-time Hub"
           },
           "created_at": {
             "type": "string",

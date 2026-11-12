@@ -43,7 +43,7 @@ func (h *Handler) CreateKey(c *gin.Context) {
 
 	created, err := h.service.CreateKey(c.Request.Context(), userID, req)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -60,7 +60,7 @@ func (h *Handler) ListKeys(c *gin.Context) {
 
 	keys, err := h.service.ListKeys(c.Request.Context(), userID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -90,7 +90,7 @@ func (h *Handler) DeleteKey(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "API key not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 

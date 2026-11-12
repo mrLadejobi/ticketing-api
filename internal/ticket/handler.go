@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"ticketing-api/internal/response"
 
@@ -56,7 +57,7 @@ func (h *Handler) CreateTicket(c *gin.Context) {
 
 	ticket, err := h.service.Create(c.Request.Context(), reporterID, req)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to create ticket: "+err.Error())
+		response.InternalError(c, err, "Failed to create ticket: "+err.Error())
 		return
 	}
 
@@ -73,7 +74,7 @@ func (h *Handler) ListTickets(c *gin.Context) {
 
 	tickets, total, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to retrieve tickets")
+		response.InternalError(c, err, "Failed to retrieve tickets")
 		return
 	}
 
@@ -94,7 +95,7 @@ func (h *Handler) GetTicketByIDOrKey(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to retrieve ticket")
+		response.InternalError(c, err, "Failed to retrieve ticket")
 		return
 	}
 
@@ -110,7 +111,7 @@ func (h *Handler) UpdateTicket(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to retrieve ticket")
+		response.InternalError(c, err, "Failed to retrieve ticket")
 		return
 	}
 
@@ -142,7 +143,7 @@ func (h *Handler) UpdateTicket(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to update ticket: "+err.Error())
+		response.InternalError(c, err, "Failed to update ticket: "+err.Error())
 		return
 	}
 
@@ -158,7 +159,7 @@ func (h *Handler) DeleteTicket(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to find ticket")
+		response.InternalError(c, err, "Failed to find ticket")
 		return
 	}
 
@@ -167,7 +168,7 @@ func (h *Handler) DeleteTicket(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found or already deleted")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to delete ticket")
+		response.InternalError(c, err, "Failed to delete ticket")
 		return
 	}
 
@@ -183,13 +184,13 @@ func (h *Handler) RestoreTicket(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to find ticket")
+		response.InternalError(c, err, "Failed to find ticket")
 		return
 	}
 
 	restored, err := h.service.Restore(c.Request.Context(), existing.ID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to restore ticket")
+		response.InternalError(c, err, "Failed to restore ticket")
 		return
 	}
 
@@ -205,14 +206,24 @@ func (h *Handler) ListSubtasks(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Parent ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve parent ticket")
+		response.InternalError(c, err, "Failed to resolve parent ticket")
 		return
 	}
 
 	subtasks, err := h.service.ListSubtasks(c.Request.Context(), parent.ID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to retrieve subtasks")
+		response.InternalError(c, err, "Failed to retrieve subtasks")
 		return
+	}
+
+	if typeFilter := strings.ToUpper(strings.TrimSpace(c.Query("type"))); typeFilter != "" {
+		filtered := make([]Ticket, 0, len(subtasks))
+		for _, st := range subtasks {
+			if string(st.TicketType) == typeFilter {
+				filtered = append(filtered, st)
+			}
+		}
+		subtasks = filtered
 	}
 
 	response.OK(c, subtasks)
@@ -233,7 +244,7 @@ func (h *Handler) BulkUpdateTickets(c *gin.Context) {
 
 	updated, err := h.service.BulkUpdate(ctx, req)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 

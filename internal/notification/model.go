@@ -13,6 +13,7 @@ const (
 	TypeAssigned      NotificationType = "ASSIGNED"
 	TypeStatusChanged NotificationType = "STATUS_CHANGED"
 	TypeCommentAdded  NotificationType = "COMMENT_ADDED"
+	TypeFeatureAdded  NotificationType = "FEATURE_ADDED"
 )
 
 type Notification struct {

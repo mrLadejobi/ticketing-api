@@ -44,7 +44,7 @@ func (h *Handler) ListTicketActivities(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve ticket")
+		response.InternalError(c, err, "Failed to resolve ticket")
 		return
 	}
 
@@ -59,7 +59,7 @@ func (h *Handler) ListTicketActivities(c *gin.Context) {
 
 	activities, total, err := h.service.ListTicketActivities(c.Request.Context(), t.ID, limit, offset)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 
 	logs, total, err := h.service.ListAuditLogs(c.Request.Context(), limit, offset)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 

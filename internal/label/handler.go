@@ -65,7 +65,7 @@ func (h *Handler) CreateProjectLabel(c *gin.Context) {
 				response.Error(c, http.StatusNotFound, response.CodeNotFound, "Project not found")
 				return
 			}
-			response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve project")
+			response.InternalError(c, err, "Failed to resolve project")
 			return
 		}
 	}
@@ -86,7 +86,7 @@ func (h *Handler) CreateProjectLabel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, response.CodeInvalidArgument, "Invalid color_hex: must be valid hex code like #EF4444")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -102,7 +102,7 @@ func (h *Handler) ListProjectLabels(c *gin.Context) {
 
 	labels, err := h.service.ListProjectLabels(c.Request.Context(), projectID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -121,7 +121,7 @@ func (h *Handler) AddTicketLabel(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve ticket")
+		response.InternalError(c, err, "Failed to resolve ticket")
 		return
 	}
 
@@ -140,7 +140,7 @@ func (h *Handler) AddTicketLabel(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Label not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -156,7 +156,7 @@ func (h *Handler) RemoveTicketLabel(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve ticket")
+		response.InternalError(c, err, "Failed to resolve ticket")
 		return
 	}
 
@@ -171,7 +171,7 @@ func (h *Handler) RemoveTicketLabel(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Label attachment not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 
@@ -186,13 +186,13 @@ func (h *Handler) ListTicketLabels(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Ticket not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to resolve ticket")
+		response.InternalError(c, err, "Failed to resolve ticket")
 		return
 	}
 
 	labels, err := h.service.ListTicketLabels(c.Request.Context(), t.ID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, err.Error())
+		response.InternalError(c, err, err.Error())
 		return
 	}
 

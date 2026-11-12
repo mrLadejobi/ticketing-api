@@ -49,6 +49,7 @@ jobs:
           DB_USER: postgres
           DB_PASSWORD: postgres
           DB_NAME: ticketing_db
+          TEST_DB_NAME: ticketing_db
           DB_SSL_MODE: disable
         run: go test -v -race -cover ./...
 

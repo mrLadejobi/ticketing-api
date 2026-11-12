@@ -44,7 +44,7 @@ func (h *Handler) CreateTeam(c *gin.Context) {
 			response.Error(c, http.StatusConflict, response.CodeConflict, "Team slug is already in use")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to create team")
+		response.InternalError(c, err, "Failed to create team")
 		return
 	}
 
@@ -54,7 +54,7 @@ func (h *Handler) CreateTeam(c *gin.Context) {
 func (h *Handler) ListTeams(c *gin.Context) {
 	teams, err := h.service.ListTeams(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to list teams")
+		response.InternalError(c, err, "Failed to list teams")
 		return
 	}
 	response.OK(c, teams)
@@ -73,7 +73,7 @@ func (h *Handler) GetTeamByID(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Team not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to get team")
+		response.InternalError(c, err, "Failed to get team")
 		return
 	}
 	response.OK(c, team)
@@ -98,7 +98,7 @@ func (h *Handler) AddMember(c *gin.Context) {
 			response.Error(c, http.StatusConflict, response.CodeConflict, "User is already a member of this team")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to add member to team")
+		response.InternalError(c, err, "Failed to add member to team")
 		return
 	}
 
@@ -123,7 +123,7 @@ func (h *Handler) RemoveMember(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Member not found in team")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to remove member")
+		response.InternalError(c, err, "Failed to remove member")
 		return
 	}
 
@@ -139,7 +139,7 @@ func (h *Handler) ListMembers(c *gin.Context) {
 
 	members, err := h.service.ListMembers(c.Request.Context(), teamID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to list members")
+		response.InternalError(c, err, "Failed to list members")
 		return
 	}
 

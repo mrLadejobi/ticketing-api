@@ -18,12 +18,18 @@ type TxManager interface {
 	RunInTx(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
+type ProjectNotifier interface {
+	NotifyProjectFeatureAdded(ctx context.Context, projectID, actorID, ticketID int, key, title string)
+	RecordProjectTicketLog(ctx context.Context, projectID int, actorID, ticketID *int, action, summary string)
+}
+
 // Service encapsulates the business operations for tickets.
 type Service struct {
 	repo             Repository
 	keyGenerator     KeyGenerator
 	activityRecorder ActivityRecorder
 	txManager        TxManager
+	projectNotifier  ProjectNotifier
 }
 
 func NewService(repo Repository, keyGenerator KeyGenerator) *Service {
@@ -41,6 +47,10 @@ func (s *Service) SetTxManager(txManager TxManager) {
 	s.txManager = txManager
 }
 
+func (s *Service) SetProjectNotifier(notifier ProjectNotifier) {
+	s.projectNotifier = notifier
+}
+
 func (s *Service) Create(ctx context.Context, reporterID int, req CreateTicketRequest) (*Ticket, error) {
 	var key string
 	if s.keyGenerator != nil {
@@ -53,18 +63,50 @@ func (s *Service) Create(ctx context.Context, reporterID int, req CreateTicketRe
 		key = fmt.Sprintf("ISSUE-%d", req.ProjectID)
 	}
 
-	ticket := &Ticket{
-		ProjectID:   req.ProjectID,
-		ParentID:    req.ParentID,
-		Key:         key,
-		Title:       req.Title,
-		Description: req.Description,
-		Status:      StatusTodo,
-		Priority:    req.Priority,
-		ReporterID:  reporterID,
-		AssigneeID:  req.AssigneeID,
+	status := req.Status
+	if status == "" {
+		status = StatusTodo
 	}
-	return s.repo.Create(ctx, ticket)
+	tType := req.TicketType
+	if tType == "" {
+		tType = TypeTask
+	}
+
+	t := &Ticket{
+		ProjectID:       req.ProjectID,
+		ParentID:        req.ParentID,
+		CycleID:         req.CycleID,
+		Key:             key,
+		TicketType:      tType,
+		Title:           req.Title,
+		Description:     req.Description,
+		WorkSummary:     req.WorkSummary,
+		Status:          status,
+		Priority:        req.Priority,
+		ProgressPercent: req.ProgressPercent,
+		DueDate:         req.DueDate,
+		ReporterID:      reporterID,
+		AssigneeID:      req.AssigneeID,
+	}
+	created, err := s.repo.Create(ctx, t)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.projectNotifier != nil {
+		var actorPtr *int
+		if reporterID > 0 {
+			actorPtr = &reporterID
+		}
+		if created.TicketType == TypeFeature {
+			s.projectNotifier.NotifyProjectFeatureAdded(ctx, created.ProjectID, reporterID, created.ID, created.Key, created.Title)
+			s.projectNotifier.RecordProjectTicketLog(ctx, created.ProjectID, actorPtr, &created.ID, "FEATURE_ADDED", fmt.Sprintf("New feature %s: %s", created.Key, created.Title))
+		} else {
+			s.projectNotifier.RecordProjectTicketLog(ctx, created.ProjectID, actorPtr, &created.ID, "TICKET_CREATED", fmt.Sprintf("Created %s (%s): %s", created.Key, created.TicketType, created.Title))
+		}
+	}
+
+	return created, nil
 }
 
 func (s *Service) List(ctx context.Context, filter ListTicketsFilter) ([]Ticket, int, error) {

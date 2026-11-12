@@ -44,7 +44,7 @@ func (h *Handler) List(c *gin.Context) {
 
 	notifications, total, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to list notifications")
+		response.InternalError(c, err, "Failed to list notifications")
 		return
 	}
 
@@ -64,7 +64,7 @@ func (h *Handler) MarkRead(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, response.CodeNotFound, "Notification not found")
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to mark notification as read")
+		response.InternalError(c, err, "Failed to mark notification as read")
 		return
 	}
 
@@ -75,7 +75,7 @@ func (h *Handler) MarkAllRead(c *gin.Context) {
 	userID := c.GetInt("user_id")
 
 	if err := h.service.MarkAllAsRead(c.Request.Context(), userID); err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeInternal, "Failed to mark all notifications as read")
+		response.InternalError(c, err, "Failed to mark all notifications as read")
 		return
 	}
 

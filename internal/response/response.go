@@ -3,7 +3,9 @@ package response
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"runtime"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -91,6 +93,37 @@ func Error(c *gin.Context, httpStatus int, code, message string, details ...Fiel
 			Details:   details,
 		},
 	})
+}
+
+// InternalError logs the exact underlying error and caller file/line via slog, attaches it to Gin context,
+// and returns a safe 500 JSON envelope to the client.
+func InternalError(c *gin.Context, err error, message string) {
+	reqID := GetRequestID(c)
+	if err != nil {
+		_ = c.Error(err)
+	}
+
+	var callerFile, callerFunc string
+	var callerLine int
+	if pc, file, line, ok := runtime.Caller(1); ok {
+		callerFile = file
+		callerLine = line
+		if fn := runtime.FuncForPC(pc); fn != nil {
+			callerFunc = fn.Name()
+		}
+	}
+
+	slog.ErrorContext(c.Request.Context(), message,
+		slog.String("request_id", reqID),
+		slog.String("method", c.Request.Method),
+		slog.String("path", c.Request.URL.Path),
+		slog.Any("error", err),
+		slog.String("caller_func", callerFunc),
+		slog.String("caller_file", callerFile),
+		slog.Int("caller_line", callerLine),
+	)
+
+	Error(c, http.StatusInternalServerError, CodeInternal, message)
 }
 
 // ValidationError inspects Gin's validator.ValidationErrors and produces human-friendly field errors.
