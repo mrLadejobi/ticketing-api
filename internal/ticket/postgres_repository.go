@@ -52,7 +52,7 @@ func (r *PostgresRepository) Create(ctx context.Context, t *Ticket) (*Ticket, er
 	t.CreatedAt = now
 	t.UpdatedAt = now
 
-	err := r.db.QueryRowContext(
+	err := r.getExecutor(ctx).QueryRowContext(
 		ctx, query,
 		t.ProjectID, t.ParentID, t.CycleID, t.Key, t.TicketType, t.Title, t.Description, t.WorkSummary, t.Status, t.Priority, t.ProgressPercent, t.DueDate, t.ReporterID, t.AssigneeID, t.CreatedAt, t.UpdatedAt,
 	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
@@ -155,7 +155,7 @@ func (r *PostgresRepository) List(ctx context.Context, filter ListTicketsFilter)
 	`, whereSQL, argID, argID+1)
 
 	queryArgs := append(args, limit, offset)
-	rows, err := r.db.QueryContext(ctx, dataQuery, queryArgs...)
+	rows, err := r.getExecutor(ctx).QueryContext(ctx, dataQuery, queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query tickets failed: %w", err)
 	}
@@ -200,7 +200,7 @@ func (r *PostgresRepository) GetByIDOrKey(ctx context.Context, idOrKey string) (
 		WHERE %s
 	`, whereClause)
 
-	row := r.db.QueryRowContext(ctx, query, arg)
+	row := r.getExecutor(ctx).QueryRowContext(ctx, query, arg)
 	t, err := scanTicketRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -328,7 +328,7 @@ func (r *PostgresRepository) ListSubtasks(ctx context.Context, parentID int) ([]
 		WHERE t.parent_id = $1 AND t.deleted_at IS NULL
 		ORDER BY t.id ASC
 	`
-	rows, err := r.db.QueryContext(ctx, query, parentID)
+	rows, err := r.getExecutor(ctx).QueryContext(ctx, query, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("list subtasks failed: %w", err)
 	}
@@ -360,7 +360,7 @@ func (r *PostgresRepository) ListByCycle(ctx context.Context, cycleID int) ([]Ti
 		WHERE t.cycle_id = $1 AND t.deleted_at IS NULL
 		ORDER BY t.id ASC
 	`
-	rows, err := r.db.QueryContext(ctx, query, cycleID)
+	rows, err := r.getExecutor(ctx).QueryContext(ctx, query, cycleID)
 	if err != nil {
 		return nil, fmt.Errorf("list by cycle failed: %w", err)
 	}
