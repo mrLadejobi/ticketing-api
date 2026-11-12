@@ -19,6 +19,7 @@ import (
 	"ticketing-api/internal/cycle"
 	"ticketing-api/internal/database"
 	"ticketing-api/internal/docs"
+	"ticketing-api/internal/export"
 	"ticketing-api/internal/label"
 	"ticketing-api/internal/metrics"
 	"ticketing-api/internal/middleware"
@@ -215,6 +216,7 @@ func main() {
 	})
 
 	metricsHandler := metrics.NewHandler(ticketService, authRepo, projectService)
+	exportHandler := export.NewHandler(ticketService, authRepo, projectService)
 
 	// 6. Initialize Gin Engine with Custom Middleware Pipeline
 	gin.SetMode(gin.ReleaseMode)
@@ -289,6 +291,7 @@ func main() {
 		notificationHandler.RegisterRoutes(v1, authMiddleware)
 		sseHandler.RegisterRoutes(v1, authMiddleware)
 		metricsHandler.RegisterRoutes(v1, authMiddleware)
+		exportHandler.RegisterRoutes(v1, authMiddleware)
 	}
 
 	// 7. Production HTTP Server with Graceful Shutdown
