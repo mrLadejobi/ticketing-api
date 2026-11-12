@@ -9,11 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"ticketing-api/internal/auth"
 	"ticketing-api/internal/project"
 	"ticketing-api/internal/response"
 	"ticketing-api/internal/ticket"
+
+	"github.com/gin-gonic/gin"
 )
 
 type TicketReader interface {
@@ -267,9 +268,10 @@ func buildBragReport(
 		if isCompleted {
 			report.Summary.CompletedTasks++
 			ps.Completed++
-			if t.TicketType == ticket.TypeFeature {
+			switch t.TicketType {
+			case ticket.TypeFeature:
 				report.Summary.FeaturesShipped++
-			} else if t.TicketType == ticket.TypeBug {
+			case ticket.TypeBug:
 				report.Summary.BugsResolved++
 			}
 			report.CompletedWork = append(report.CompletedWork, item)
@@ -313,4 +315,3 @@ func buildBragReport(
 
 	return report
 }
-
